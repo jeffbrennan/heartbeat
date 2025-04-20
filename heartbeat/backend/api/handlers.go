@@ -49,56 +49,6 @@ var SubwayEndpointMap = map[SubwayEndpoint]string{
 	NUMBERED: "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",
 }
 
-func LoadVehicles(
-	conn *pgx.Conn,
-	ctx context.Context,
-	feed *transit_realtime.FeedMessage,
-) (int64, error) {
-	vehicles := GetCleanVehicles(feed)
-	if len(vehicles) == 0 {
-		return 0, nil
-	}
-
-	tx, err := conn.Begin(ctx)
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback(ctx)
-
-	sqlStr := GenerateSQLInsert(
-		"fct_vehicles",
-		[]string{
-			"trip_id",
-			"stop_id",
-			"timestamp",
-			"status",
-			"stop_sequence",
-		},
-		[]string{"trip_id", "stop_id", "timestamp"},
-		len(vehicles),
-	)
-	args := buildArgs(vehicles, func(v Vehicle) []any {
-		return []any{
-			v.trip_id,
-			v.stop_id,
-			v.timestamp,
-			v.status,
-			v.stop_sequence,
-		}
-	})
-
-	commandTag, err := tx.Exec(ctx, sqlStr, args...)
-	if err != nil {
-		return 0, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return 0, err
-	}
-
-	return commandTag.RowsAffected(), nil
-}
-
 func GetCleanVehicles(feed *transit_realtime.FeedMessage) []Vehicle {
 	vehicles := []Vehicle{}
 
@@ -136,6 +86,55 @@ func GetCleanVehicles(feed *transit_realtime.FeedMessage) []Vehicle {
 	return vehicles
 }
 
+func LoadVehicles(
+	conn *pgx.Conn,
+	ctx context.Context,
+	feed *transit_realtime.FeedMessage,
+) (int64, error) {
+	vehicles := GetCleanVehicles(feed)
+	if len(vehicles) == 0 {
+		return 0, nil
+	}
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	sqlStr := generateSQLInsert(
+		"fct_vehicles",
+		[]string{
+			"trip_id",
+			"stop_id",
+			"timestamp",
+			"status",
+			"stop_sequence",
+		},
+		[]string{"trip_id", "stop_id", "timestamp"},
+		len(vehicles),
+	)
+	args := buildArgs(vehicles, func(v Vehicle) []any {
+		return []any{
+			v.trip_id,
+			v.stop_id,
+			v.timestamp,
+			v.status,
+			v.stop_sequence,
+		}
+	})
+
+	commandTag, err := tx.Exec(ctx, sqlStr, args...)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+
+	return commandTag.RowsAffected(), nil
+}
 func GetCleanTrips(feed *transit_realtime.FeedMessage) []Trip {
 	trips := []Trip{}
 
@@ -154,60 +153,6 @@ func GetCleanTrips(feed *transit_realtime.FeedMessage) []Trip {
 	}
 	return trips
 }
-
-func generatePlaceholders(nRows int, nCols int) string {
-	placeholders := ""
-	for i := range nRows {
-		if i > 0 {
-			placeholders += ", "
-		}
-		placeholders += "("
-		for j := range nCols {
-			if j > 0 {
-				placeholders += ", "
-			}
-			placeholders += fmt.Sprintf("$%d", i*nCols+j+1)
-		}
-		placeholders += ")"
-	}
-	return placeholders
-}
-
-func joinColumns(columns []string) string {
-	str := ""
-	for i, col := range columns {
-		if i > 0 {
-			str += ", "
-		}
-		str += col
-	}
-	return str
-}
-
-func buildArgs[T any](records []T, mapper func(T) []any) []any {
-	args := []any{}
-	for _, rec := range records {
-		args = append(args, mapper(rec)...)
-	}
-	return args
-}
-
-func GenerateSQLInsert(
-	tableName string,
-	cols []string,
-	pkCols []string,
-	nRows int,
-) string {
-	sqlStr := fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES ",
-		tableName,
-		joinColumns(cols),
-	)
-	sqlStr += generatePlaceholders((nRows), len(cols))
-	sqlStr += fmt.Sprintf("ON CONFLICT (%s) DO NOTHING", joinColumns(pkCols))
-	return sqlStr
-}
-
 func LoadTrips(
 	conn *pgx.Conn,
 	ctx context.Context,
@@ -224,7 +169,7 @@ func LoadTrips(
 	}
 	defer tx.Rollback(ctx)
 
-	sqlStr := GenerateSQLInsert(
+	sqlStr := generateSQLInsert(
 		"fct_trips",
 		[]string{"trip_id", "route_id", "start_date", "start_time"},
 		[]string{"trip_id", "route_id", "start_date"},
@@ -281,4 +226,57 @@ func GetSubwayData(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(feed)
+}
+
+func buildArgs[T any](records []T, mapper func(T) []any) []any {
+	args := []any{}
+	for _, rec := range records {
+		args = append(args, mapper(rec)...)
+	}
+	return args
+}
+
+func generatePlaceholders(nRows int, nCols int) string {
+	placeholders := ""
+	for i := range nRows {
+		if i > 0 {
+			placeholders += ", "
+		}
+		placeholders += "("
+		for j := range nCols {
+			if j > 0 {
+				placeholders += ", "
+			}
+			placeholders += fmt.Sprintf("$%d", i*nCols+j+1)
+		}
+		placeholders += ")"
+	}
+	return placeholders
+}
+
+func generateSQLInsert(
+	tableName string,
+	cols []string,
+	pkCols []string,
+	nRows int,
+) string {
+	sqlStr := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES ",
+		tableName,
+		joinColumns(cols),
+	)
+	sqlStr += generatePlaceholders((nRows), len(cols))
+	sqlStr += fmt.Sprintf("ON CONFLICT (%s) DO NOTHING", joinColumns(pkCols))
+	return sqlStr
+}
+
+func joinColumns(columns []string) string {
+	str := ""
+	for i, col := range columns {
+		if i > 0 {
+			str += ", "
+		}
+		str += col
+	}
+	return str
 }
