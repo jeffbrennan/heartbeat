@@ -15,9 +15,9 @@ import (
 type Vehicle struct {
 	trip_id       string
 	stop_id       string
+	timestamp     uint64
 	status        string
 	stop_sequence int32
-	timestamp     uint64
 }
 
 type Trip struct {
@@ -67,7 +67,13 @@ func LoadVehicles(
 
 	sqlStr := GenerateSQLInsert(
 		"fct_vehicles",
-		[]string{"trip_id", "stop_id", "status", "stop_sequence", "timestamp"},
+		[]string{
+			"trip_id",
+			"stop_id",
+			"timestamp",
+			"status",
+			"stop_sequence",
+		},
 		[]string{"trip_id", "stop_id", "timestamp"},
 		len(vehicles),
 	)
@@ -75,9 +81,9 @@ func LoadVehicles(
 		return []any{
 			v.trip_id,
 			v.stop_id,
+			v.timestamp,
 			v.status,
 			v.stop_sequence,
-			v.timestamp,
 		}
 	})
 
@@ -120,9 +126,9 @@ func GetCleanVehicles(feed *transit_realtime.FeedMessage) []Vehicle {
 		vehicle_clean := Vehicle{
 			trip_id:       *entity.Vehicle.Trip.TripId,
 			stop_id:       *entity.Vehicle.StopId,
+			timestamp:     *entity.Vehicle.Timestamp,
 			status:        status,
 			stop_sequence: stop_sequence,
-			timestamp:     *entity.Vehicle.Timestamp,
 		}
 		vehicles = append(vehicles, vehicle_clean)
 

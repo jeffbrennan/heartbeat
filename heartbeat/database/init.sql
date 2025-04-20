@@ -81,8 +81,8 @@ drop table if exists fct_vehicles;
 create table if not exists fct_vehicles (
     trip_id text,
     stop_id text,
+    timestamp int,
     status text,
     stop_sequence smallint,
-    timestamp int,
     primary key (trip_id, stop_id, timestamp)
 );
