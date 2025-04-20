@@ -67,3 +67,22 @@ create table dim_transfers (
     primary key (from_stop_id, to_stop_id)
 );
 \copy dim_transfers from 'heartbeat/database/sources/mta/transfers.txt' (FORMAT CSV, HEADER, DELIMITER(','));
+
+drop table if exists fct_trips;
+create table if not exists fct_trips (
+    trip_id text,
+    route_id text,
+    start_date text,
+    start_time text,
+    primary key (trip_id, route_id, start_date)
+);
+
+drop table if exists fct_vehicles;
+create table if not exists fct_vehicles (
+    trip_id text,
+    stop_id text,
+    status text,
+    stop_sequence smallint,
+    timestamp int,
+    primary key (trip_id, stop_id, timestamp)
+);
