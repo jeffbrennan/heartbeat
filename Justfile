@@ -5,3 +5,6 @@
     --go-grpc_out=paths=source_relative:heartbeat/backend/internal/proto \
     heartbeat/backend/internal/proto/gtfs-realtime.proto \
     heartbeat/backend/internal/proto/nyct-ext.proto
+
+@dbinit:
+    psql -U postgres -d heartbeat -a -f "heartbeat/database/init.sql"
