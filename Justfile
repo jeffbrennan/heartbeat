@@ -8,3 +8,6 @@
 
 @dbinit:
     psql -U postgres -d heartbeat -a -f "heartbeat/database/init.sql"
+
+@up:
+    docker compose up
