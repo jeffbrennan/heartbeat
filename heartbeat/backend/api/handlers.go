@@ -223,6 +223,7 @@ func GetFeedMessage(url string) (*transit_realtime.FeedMessage, error) {
 	}
 	return feed, nil
 }
+
 func GetSubwayDataByEndpoint(
 	ctx context.Context,
 	conn *pgx.Conn,
@@ -264,8 +265,6 @@ func GetSubwayDataByEndpoint(
 func GetSubwayData(ctx context.Context, pool *pgxpool.Pool) error {
 	eg, ctx := errgroup.WithContext(ctx)
 	for endpoint, url := range SubwayEndpointMap {
-		ep := endpoint
-		url := url
 		eg.Go(func() error {
 			conn, err := pool.Acquire(ctx)
 			if err != nil {
@@ -274,7 +273,7 @@ func GetSubwayData(ctx context.Context, pool *pgxpool.Pool) error {
 			defer conn.Release()
 
 			log.Printf("Loading data from %s", url)
-			return GetSubwayDataByEndpoint(ctx, conn.Conn(), ep)
+			return GetSubwayDataByEndpoint(ctx, conn.Conn(), endpoint)
 		})
 	}
 	return eg.Wait()
