@@ -7,9 +7,10 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -222,44 +223,61 @@ func GetFeedMessage(url string) (*transit_realtime.FeedMessage, error) {
 	}
 	return feed, nil
 }
-
 func GetSubwayDataByEndpoint(
 	ctx context.Context,
 	conn *pgx.Conn,
 	endpoint SubwayEndpoint,
-) {
+) error {
 	feed, err := GetFeedMessage(SubwayEndpointMap[endpoint])
-	log.Printf("Obtained %d entities", len(feed.Entity))
 	if err != nil {
-		panic(err)
+		return err
 	}
+	log.Printf(
+		"Obtained %d entities from %s",
+		len(feed.Entity),
+		SubwayEndpointMap[endpoint],
+	)
 
 	var allRows int64 = 0
 	rows, err := LoadTrips(conn, ctx, feed)
 	if err != nil {
-		log.Printf("Unable to load trips: %v\n", err)
-		os.Exit(1)
+		return err
 	}
-
 	log.Printf("Loaded %d trips\n", rows)
 	allRows += rows
 
 	rows, err = LoadVehicles(conn, ctx, feed)
 	if err != nil {
-		log.Printf("Unable to load vehicles: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 	log.Printf("Loaded %d vehicles\n", rows)
 	allRows += rows
 
-	log.Printf("Data loaded successfully: %d rows", allRows)
+	log.Printf(
+		"Data loaded successfully from %s: %d rows",
+		SubwayEndpointMap[endpoint],
+		allRows,
+	)
+	return nil
 }
 
-func GetSubwayData(ctx context.Context, conn *pgx.Conn) {
-	for endpoint := range SubwayEndpointMap {
-		log.Printf("Loading data from %s\n", SubwayEndpointMap[endpoint])
-		GetSubwayDataByEndpoint(ctx, conn, endpoint)
+func GetSubwayData(ctx context.Context, pool *pgxpool.Pool) error {
+	eg, ctx := errgroup.WithContext(ctx)
+	for endpoint, url := range SubwayEndpointMap {
+		ep := endpoint
+		url := url
+		eg.Go(func() error {
+			conn, err := pool.Acquire(ctx)
+			if err != nil {
+				return err
+			}
+			defer conn.Release()
+
+			log.Printf("Loading data from %s", url)
+			return GetSubwayDataByEndpoint(ctx, conn.Conn(), ep)
+		})
 	}
+	return eg.Wait()
 }
 
 func buildArgs[T any](records []T, mapper func(T) []any) []any {
