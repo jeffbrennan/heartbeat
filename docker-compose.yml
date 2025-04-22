@@ -4,12 +4,14 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres 
-      POSTGRES_DB: heartbeat 
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: heartbeat
     ports:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./heartbeat/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./heartbeat:/heartbeat
 
   metabase:
     image: metabase/metabase
@@ -24,7 +26,13 @@ services:
       - MB_DB_HOST=db
     volumes:
       - metabase_data:/metabase-data
-  
+  backend:
+    build:
+      context: ./heartbeat/backend
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+
 volumes:
   db_data:
   metabase_data:

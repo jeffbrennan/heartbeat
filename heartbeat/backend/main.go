@@ -14,8 +14,7 @@ import (
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	url := "postgresql://localhost:5432/heartbeat"
+	url := "postgresql://postgres:postgres@db:5432/heartbeat"
 	config, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to parse configuration: %v\n", err)
